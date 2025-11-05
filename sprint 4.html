@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Passa a Bola - Monitoramento de Velocidade</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    /* ---------- ESTILO GERAL ---------- */
+    body {
+      font-family: 'Poppins', Arial, sans-serif;
+      background: linear-gradient(135deg, #ff69b4 20%, #6dd5fa 80%);
+      color: #333;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+      overflow-x: hidden;
+    }
+
+    h1 {
+      font-size: 2.8em;
+      color: white;
+      text-shadow: 2px 2px 8px rgba(0,0,0,0.3);
+      margin-bottom: 10px;
+      letter-spacing: 1px;
+      animation: fadeIn 1.5s ease;
+    }
+
+    h2 {
+      color: #fff;
+      font-weight: 400;
+      margin-top: 0;
+      font-size: 1.2em;
+      text-shadow: 1px 1px 4px rgba(0,0,0,0.3);
+    }
+
+    /* ---------- BLOCO DE MEDIÇÃO ---------- */
+    .medicao {
+      font-size: 1.6em;
+      margin: 20px 0;
+      padding: 15px 35px;
+      border-radius: 20px;
+      background: linear-gradient(to right, #ff6f91, #ff9671);
+      color: #fff;
+      box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+      transition: transform 0.3s ease;
+      animation: pulse 3s infinite;
+    }
+
+    .medicao:hover {
+      transform: scale(1.05);
+    }
+
+    /* ---------- CONTAINER DO GRÁFICO ---------- */
+    .chart-container {
+      width: 95%;
+      max-width: 900px;
+      margin-top: 30px;
+      background: #ffffffcc;
+      backdrop-filter: blur(10px);
+      padding: 25px;
+      border-radius: 20px;
+      box-shadow: 0 5px 25px rgba(0,0,0,0.3);
+      animation: slideUp 1.2s ease;
+    }
+
+    /* ---------- RODAPÉ ---------- */
+    footer {
+      margin-top: 40px;
+      color: #fff;
+      font-size: 0.9em;
+      text-align: center;
+      opacity: 0.9;
+    }
+
+    /* ---------- ANIMAÇÕES ---------- */
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(40px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 15px rgba(255,255,255,0.6); }
+      50% { box-shadow: 0 0 25px rgba(255,255,255,0.9); }
+    }
+  </style>
+</head>
+<body>
+  <h1> Passa a Bola</h1>
+  <h2>Monitoramento de Velocidade da Bola em Tempo Real</h2>
+
+  <div class="medicao">Velocidade: <span id="potenciometro">--</span> km/h</div>
+  
+  <div class="chart-container">
+    <canvas id="chartPot"></canvas>
+  </div>
+
+  <footer>
+    Projeto desenvolvido por André Monteiro (RM 562397) — Desafio Passa a Bola 
+  </footer>
+
+  <script>
+    // ---------- CONFIGURAÇÃO DO GRÁFICO ----------
+    const ctxPot = document.getElementById('chartPot').getContext('2d');
+
+    const chartPot = new Chart(ctxPot, {
+      type: 'line',
+      data: {
+        labels: [],
+        datasets: [{
+          label: 'Velocidade da Bola (km/h)',
+          data: [],
+          borderColor: '#ff477e',
+          backgroundColor: 'rgba(255, 105, 180, 0.3)',
+          fill: true,
+          tension: 0.4,
+          pointRadius: 4,
+          pointBackgroundColor: '#ff6f91'
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          legend: { 
+            position: 'top',
+            labels: { color: '#333', font: { size: 14, weight: 'bold' } }
+          }
+        },
+        scales: {
+          x: {
+            title: { display: true, text: 'Tempo (mm:ss)', color: '#333', font: { weight: 'bold' } },
+            ticks: { color: '#333' }
+          },
+          y: {
+            title: { display: true, text: 'Velocidade (km/h)', color: '#333', font: { weight: 'bold' } },
+            ticks: { color: '#333' },
+            beginAtZero: true,
+            min: 0,
+            max: 200  // 🔥 Escala ajustada de 0 a 200
+          }
+        },
+        animation: { duration: 600, easing: 'easeOutQuart' }
+      }
+    });
+
+    const MAX_PONTOS = 720;
+    let tempoSegundos = 0;
+
+    function formatarTempo(segundos) {
+      const minutos = Math.floor(segundos / 60);
+      const seg = segundos % 60;
+      return `${minutos.toString().padStart(2, '0')}:${seg.toString().padStart(2, '0')}`;
+    }
+
+    // ---------- ATUALIZAÇÃO DOS DADOS ----------
+    function atualizarDados() {
+      fetch("http://54.172.140.81:1026/v2/entities/urn:ngsi-ld:device:2007/attrs/v", {
+        method: "GET",
+        headers: {
+          "Fiware-Service": "smart",
+          "Fiware-ServicePath": "/",
+          "Accept": "application/json"
+        }
+      })
+        .then(response => response.json())
+        .then(data => {
+          const valor = data.value;
+          document.getElementById('potenciometro').textContent = valor.toFixed(2);
+
+          tempoSegundos += 5;
+          const tempoLabel = formatarTempo(tempoSegundos);
+
+          chartPot.data.labels.push(tempoLabel);
+          chartPot.data.datasets[0].data.push(valor);
+
+          if (chartPot.data.labels.length > MAX_PONTOS) {
+            chartPot.data.labels.shift();
+            chartPot.data.datasets[0].data.shift();
+          }
+
+          chartPot.update();
+        })
+        .catch(e => console.log("Falha ao buscar dados:", e));
+    }
+
+    // ---------- INICIALIZAÇÃO ----------
+    atualizarDados();
+    setInterval(atualizarDados, 5000);
+  </script>
+</body>
+</html>
